@@ -94,6 +94,7 @@ func main() {
 
 	prCh, errCh := copyFile(in, out, 4096)
 
+	var byteCount int
 	for {
 		select {
 		case err := <-errCh:
@@ -108,7 +109,8 @@ func main() {
 			close(errCh)
 			return
 		case n := <-prCh:
-			fmt.Printf("\r%d bytes read", n)
+			byteCount += n
+			fmt.Printf("\r%d bytes read", byteCount)
 		}
 	}
 }

@@ -19,16 +19,17 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, <-cha
 	done := make(chan struct{})
 
 	go func() {
-		for {
+		last := false
+		for !last {
 			chunk := make([]byte, chunkSize)
 			n, err := fdIn.Read(chunk)
 			if err != nil && !errors.Is(err, io.EOF) {
 				errCh <- err
 				break
 			}
-			// if errors.Is(err, io.EOF) {
-			// 	last = true
-			// }
+			if errors.Is(err, io.EOF) {
+				last = true
+			}
 			n, err = fdOut.Write(chunk)
 			if err != nil {
 				errCh <- err

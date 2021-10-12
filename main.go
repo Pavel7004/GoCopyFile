@@ -74,12 +74,12 @@ func openFiles(read_name, write_name string) (*os.File, *os.File, error) {
 func main() {
 	read_name, write_name, err := parseFilenames()
 	if err != nil {
-		fmt.Printf("Error: %s", err.Error())
+		fmt.Printf("Error: %s\n", err.Error())
 		return
 	}
 	fIn, fOut, err := openFiles(read_name, write_name)
 	if err != nil {
-		fmt.Printf("Error: %s", err.Error())
+		fmt.Printf("Error: %s\n", err.Error())
 		return
 	}
 	defer func() {
@@ -98,7 +98,7 @@ func main() {
 		select {
 		case err := <-errCh:
 			if err != nil {
-				panic(err)
+				fmt.Printf("Error: %s", err.Error())
 			}
 			fmt.Println()
 			return

@@ -41,6 +41,7 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, <-cha
 			case prCh <- n:
 			}
 		}
+		close(done)
 		close(errCh)
 		close(prCh)
 	}()

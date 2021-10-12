@@ -9,6 +9,10 @@ import (
 	"os/signal"
 )
 
+var (
+	ErrNotEnoughArgs = errors.New("Not enough arguments")
+)
+
 func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (chan int, chan error) {
 	prCh := make(chan int)
 	errCh := make(chan error)
@@ -37,35 +41,47 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (chan int, chan er
 	return prCh, errCh
 }
 
-func parse_filenames() (read_file string, write_file string) {
+func parseFilenames() (string, string, error) {
 	if len(os.Args) < 2 {
-		fmt.Println("Not enough arguments")
-		return
+		return "", "", ErrNotEnoughArgs
 	}
-	read_file = os.Args[1]
+	var (
+		readFile  string
+		writeFile string
+	)
+	readFile = os.Args[1]
 	if len(os.Args) >= 3 {
-		write_file = os.Args[2]
+		writeFile = os.Args[2]
 	} else {
-		write_file = "a.out"
+		writeFile = "a.out"
 	}
-	return
+	return readFile, writeFile, nil
 }
 
-func open_files(read_name, write_name string) (fIn *os.File, fOut *os.File) {
+func openFiles(read_name, write_name string) (*os.File, *os.File, error) {
 	fIn, err := os.Open(read_name)
 	if err != nil {
-		panic("Open in err")
+		return nil, nil, err
 	}
-	fOut, err = os.Create(write_name)
+	fOut, err := os.Create(write_name)
 	if err != nil {
-		panic("Open out err")
+		fIn.Close()
+		return nil, nil, err
 	}
-	return
+	return fIn, fOut, nil
 }
 
 func main() {
-	read_name, write_name := parse_filenames()
-	fIn, fOut := open_files(read_name, write_name)
+	read_name, write_name, err := parseFilenames()
+	if err != nil {
+		fmt.Printf("Error: %s", err.Error())
+		return
+	}
+	fIn, fOut, err := openFiles(read_name, write_name)
+	if err != nil {
+		fmt.Printf("Error: %s", err.Error())
+		return
+	}
 	defer func() {
 		fIn.Close()
 		fOut.Close()

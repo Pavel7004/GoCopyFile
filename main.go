@@ -106,9 +106,10 @@ func main() {
 		select {
 		case err := <-errCh:
 			if err != nil {
-				fmt.Printf("Error: %s", err.Error())
+				fmt.Printf("Error: %s\n", err.Error())
+				return
 			}
-			fmt.Println()
+			fmt.Printf("Copied %s to %s.\n", read_name, write_name)
 			return
 		case <-exitCh:
 			errCh <- nil

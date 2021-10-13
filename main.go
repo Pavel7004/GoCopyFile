@@ -13,10 +13,9 @@ var (
 	ErrNotEnoughArgs = errors.New("Not enough arguments")
 )
 
-func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, <-chan error, chan<- struct{}) {
+func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, chan error) {
 	prCh := make(chan int)
 	errCh := make(chan error)
-	done := make(chan struct{})
 
 	go func() {
 		last := false
@@ -36,17 +35,16 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, <-cha
 				break
 			}
 			select {
-			case <-done:
+			case <-errCh:
 				break
 			case prCh <- n:
 			}
 		}
-		close(done)
 		close(errCh)
 		close(prCh)
 	}()
 
-	return prCh, errCh, done
+	return prCh, errCh
 }
 
 func parseFilenames() (string, string, error) {
@@ -100,7 +98,7 @@ func main() {
 	exitCh := make(chan os.Signal)
 	signal.Notify(exitCh, os.Interrupt)
 
-	prCh, errCh, done := copyFile(in, out, 4096)
+	prCh, errCh := copyFile(in, out, 4096)
 
 	var byteCount int
 	for {
@@ -112,7 +110,7 @@ func main() {
 			fmt.Println()
 			return
 		case <-exitCh:
-			done <- struct{}{}
+			errCh <- nil
 			return
 		case n := <-prCh:
 			byteCount += n

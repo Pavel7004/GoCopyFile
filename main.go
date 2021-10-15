@@ -20,6 +20,8 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, chan 
 	go func() {
 		last := false
 		byteCount := 0
+		dummyCh := make(chan struct{})
+		close(dummyCh)
 		for !last {
 			chunk := make([]byte, chunkSize)
 			n, err := fdIn.Read(chunk)
@@ -40,6 +42,7 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, chan 
 			case <-errCh:
 				break
 			case prCh <- byteCount:
+			case <-dummyCh:
 			}
 		}
 		close(errCh)

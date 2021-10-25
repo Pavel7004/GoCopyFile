@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +14,7 @@ var (
 	ErrNotEnoughArgs = errors.New("Not enough arguments")
 )
 
-func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, chan error) {
+func copyFile(ctx context.Context, fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, chan error) {
 	prCh := make(chan int)
 	errCh := make(chan error)
 
@@ -37,13 +38,15 @@ func copyFile(fdIn io.Reader, fdOut io.Writer, chunkSize int) (<-chan int, chan 
 			}
 			byteCount += n
 			select {
-			case <-errCh:
-				break
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				break LOOP
 			case prCh <- byteCount:
+			default:
 			}
 		}
-		close(errCh)
 		close(prCh)
+		close(errCh)
 	}()
 
 	return prCh, errCh
@@ -66,12 +69,12 @@ func parseFilenames() (string, string, error) {
 	return readFile, writeFile, nil
 }
 
-func openFiles(read_name, write_name string) (*os.File, *os.File, error) {
-	fIn, err := os.Open(read_name)
+func openFiles(readName, writeName string) (*os.File, *os.File, error) {
+	fIn, err := os.Open(readName)
 	if err != nil {
 		return nil, nil, err
 	}
-	fOut, err := os.Create(write_name)
+	fOut, err := os.Create(writeName)
 	if err != nil {
 		fIn.Close()
 		return nil, nil, err
@@ -80,12 +83,12 @@ func openFiles(read_name, write_name string) (*os.File, *os.File, error) {
 }
 
 func main() {
-	read_name, write_name, err := parseFilenames()
+	readName, writeName, err := parseFilenames()
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 		return
 	}
-	fIn, fOut, err := openFiles(read_name, write_name)
+	fIn, fOut, err := openFiles(readName, writeName)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 		return
@@ -97,22 +100,29 @@ func main() {
 	in := bufio.NewReader(fIn)
 	out := bufio.NewWriter(fOut)
 
-	exitCh := make(chan os.Signal)
+	exitCh := make(chan os.Signal, 1)
 	signal.Notify(exitCh, os.Interrupt)
 
-	prCh, errCh := copyFile(in, out, 4096)
+	ctx, cancel := context.WithCancel(context.Background())
+	prCh, errCh := copyFile(ctx, in, out, 4096)
 
 	for {
 		select {
+		case <-exitCh:
+			fmt.Printf("\rInterrupted\n")
+			cancel()
 		case err := <-errCh:
 			if err != nil {
 				fmt.Printf("Error: %s\n", err.Error())
+				if !errors.Is(err, ctx.Err()) {
+					cancel()
+				}
+				// Wait until errCh is closed
+				<-errCh
 				return
 			}
-			fmt.Printf("Copied %s to %s.\n", read_name, write_name)
-			return
-		case <-exitCh:
-			errCh <- nil
+			fmt.Printf("\nCopied %s to %s.\n", readName, writeName)
+			cancel()
 			return
 		case n := <-prCh:
 			fmt.Printf("\r%d bytes read", n)
